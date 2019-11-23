@@ -1,1 +1,1 @@
-# aprior-with-openMP-offloading
+# apriori-with-openMP-offloading
