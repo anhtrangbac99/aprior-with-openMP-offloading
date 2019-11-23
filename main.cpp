@@ -29,12 +29,13 @@ enum args
 
 void count_support(int min_sup, METADATA metadata, DATA_L* dataset, int i = 1);
 void print_data(const DATA_L dataset);
-void generate_permutations(const DATA_L base_data, DATA_L* dataset,METADATA metadata,int min_sup, int i = 1);
+void generate_permutations(const DATA_L base_data, DATA_L* dataset,METADATA metadata, int i = 1);
 void str_split(std::string* spl_str, std::string* data_str, char separator, int i);
-void generate_rule(DATA_L L,std::vector<DATA_L> list_L,int i,int min_conf,RULES& rules);
+void generate_rule(DATA_L L,std::vector<DATA_L> list_L,int i,int min_conf,RULES *rules,std::vector<std::string> *sup_rules);
 void subsetsUtil(std::vector<std::string>& A, std::vector<std::vector<std::string> >& res, std::vector<std::string>& subset, int index);
 std::vector<std::vector<std::string>> subsets(std::vector<std::string>& A); 
 std::vector<std::string> minus_subsets(std::vector<std::string> set,std::vector<std::string> subset);
+void print_rules(RULES rules, std::vector<std::string> sup_rules);
 
 /******************************************/
 int main(int argc, char* argv[])
@@ -69,7 +70,7 @@ int main(int argc, char* argv[])
     std::cout << L1.size() << std::endl;
     DATA_L L2, L3;
 
-    generate_permutations(L1, &L2,metadata,min_support);
+    generate_permutations(L1, &L2,metadata);
     count_support(min_support,metadata,&L2,2);
     std::cout << L2.size() << std::endl;
 
@@ -78,8 +79,15 @@ int main(int argc, char* argv[])
     list_L.push_back(L2);
 
     RULES rules;
-    generate_rule(L2,list_L,2,min_confidence,rules);
+    std::vector<std::string> sup_rules;
+    int count = 0;
+
+    generate_rule(L2,list_L,2,min_confidence,&rules,&sup_rules);
     std::cout << rules.size() << std::endl;
+
+
+    print_rules(rules,sup_rules);
+/*  
 /*  
     count_support(min_support, metadata, &L2, 2);
     std::cout << L2.size() << std::endl;
@@ -202,7 +210,7 @@ void print_data(const DATA_L dataset)
 * FROM BASE_DATA, STORED AT L_NEXT
 * WITH i IS CURRENT SIZE OF A TUPLE
 */
-void generate_permutations(const DATA_L base_data, DATA_L* L_next,METADATA metadata,int min_sup, int i)
+void generate_permutations(const DATA_L base_data, DATA_L* L_next,METADATA metadata, int i)
 {
     int point = 1;
     // Generate from the L(i - 1)
@@ -297,7 +305,7 @@ void str_split(std::string* spl_str, std::string* data_str, char separator, int 
 *WITH K IS A SUBSET OF ONE ELEMENT OF Li
 *List_l: A VECTOR OF lj (j<i) 
 */
-void generate_rule(DATA_L L,std::vector<DATA_L> list_L,int i,int min_conf,RULES& rules)
+void generate_rule(DATA_L L,std::vector<DATA_L> list_L,int i,int min_conf,RULES *rules,std::vector<std::string>* sup_rules)
 {
     // Traverse all element of Li
     for (auto e = L.begin();e != L.end();e++)
@@ -306,6 +314,7 @@ void generate_rule(DATA_L L,std::vector<DATA_L> list_L,int i,int min_conf,RULES&
         std::string * itemset = new std::string[i];
         std::vector<std::string> list_itemset;
         std::vector<std::vector<std::string>> list_sub_itemset;
+        std::vector<std::string> minus_set;
         std::string str = e->first;
 
         str_split(&str,itemset,';',i);
@@ -322,20 +331,61 @@ void generate_rule(DATA_L L,std::vector<DATA_L> list_L,int i,int min_conf,RULES&
         {
             if(list_sub_itemset[j].size() == 0) continue;
             if (list_sub_itemset[j].size() == list_itemset.size()) continue;
+            minus_set = minus_subsets(list_itemset,list_sub_itemset[j]);
             int count_subsets;
+            int count_minus_set;
             int count_set = e->second;
+            std::string subset ="";
+            std::string minussubset="";
 
+            for (int k = 0;k < list_sub_itemset[j].size();k++)
+            {
+                if (k == list_sub_itemset[j].size()-1)
+                {
+                    subset = subset + list_sub_itemset[j][k];
+                }
+                else
+                {
+                    subset = subset + list_sub_itemset[j][k] + ";";
+                }
+            }
+
+            for (int k = 0;k < minus_set.size();k++)
+            {
+                if (k == minus_set.size()-1)
+                {
+                    minussubset = minussubset + minus_set[k];
+                }
+                else
+                {
+                    minussubset = minussubset + minus_set[k] + ";";
+                }
+            }
+            
+            // Get the support of K and (Li - K)
             for (auto e1 = list_L[list_sub_itemset[j].size()-1].begin();e1!=list_L[list_sub_itemset[j].size()-1].end();e1++)
             {
-                if (e1->first == list_sub_itemset[j][0])
+                if (e1->first == subset)
                 {
                     count_subsets = e1->second;
                     break;
                 } 
 
             }
+
+            for (auto e1 = list_L[minus_set.size()-1].begin();e1!=list_L[minus_set.size()-1].end();e1++)
+            {
+                if (e1->first == minussubset)
+                {
+                    count_minus_set = e1->second;
+                    break;
+                } 
+
+            }
+
             if (count_set/count_subsets < min_conf) continue;
-            rules.insert({list_sub_itemset[j],minus_subsets(list_itemset,list_sub_itemset[j])});
+            sup_rules->push_back(std::to_string(count_subsets)+";" + std::to_string(count_minus_set)+";"+std::to_string(count_set));
+            rules->insert({list_sub_itemset[j],minus_set});
         }
     }
 }
@@ -346,9 +396,9 @@ void generate_rule(DATA_L L,std::vector<DATA_L> list_L,int i,int min_conf,RULES&
 *A: VECTOR OF STRING NEEDS TO BE GENERATED.
 *res: RESULT OF THE FUNCTION - A VECTOR OF SUBSETS
 */
-void subsetsUtil(std::vector<std::string>& A, std::vector<std::vector<std::string> >& res, std::vector<std::string>& subset, int index) 
+void subsetsUtil(std::vector<std::string>& A, std::vector<std::vector<std::string>>* res, std::vector<std::string>& subset, int index) 
 { 
-    res.push_back(subset); 
+    res->push_back(subset); 
     for (int i = index; i < A.size(); i++) { 
   
         // Include the A[i] in subset
@@ -368,11 +418,11 @@ void subsetsUtil(std::vector<std::string>& A, std::vector<std::vector<std::strin
 std::vector<std::vector<std::string>> subsets(std::vector<std::string>& A) 
 { 
     std::vector<std::string> subset; 
-    std::vector<std::vector<std::string> > res; 
+    std::vector<std::vector<std::string>> res; 
   
     // Keep track of current element in vector A 
     int index = 0; 
-    subsetsUtil(A, res, subset, index); 
+    subsetsUtil(A, &res, subset, index); 
   
     return res; 
 }
@@ -400,4 +450,47 @@ std::vector<std::string> minus_subsets(std::vector<std::string> set,std::vector<
         }
     }
     return result;
+}
+
+void print_rules(RULES rules, std::vector<std::string> sup_rules)
+{
+    int count = 0;
+    for (auto e = rules.begin(); e!=rules.end();e++)
+    {
+        std::string X ="";
+        std::string Y ="";
+        std::string* support = new std::string[3];
+        std::string temp = sup_rules[count];
+        str_split(&temp,support,';',3);
+        for (int i=0;i<e->first.size();i++)
+        {
+            if (i == e->first.size()-1)
+                {
+                    X = X + e->first[i];
+                }
+            else
+            {
+                X = X + e->first[i] + ";";
+            }
+        }
+
+        for (int i=0;i<e->second.size();i++)
+        {
+            if (i == e->second.size()-1)
+                {
+                    Y = Y + e->second[i];
+                }
+            else
+            {
+                Y = Y + e->second[i] + ";";
+            }
+        }
+
+        std:: cout  << X << "=>"
+                    << Y << " with the support of X = "
+                    << support[0] << ", Y = "
+                    << support[1] << ", X U Y = "
+                    << support[2] << std::endl;
+        count ++;
+    }
 }
